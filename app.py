@@ -30,22 +30,23 @@ n_equipos = st.number_input(
 )
 
 if st.button("Calcular distribución"):
+    n_equipos_original = int(n_equipos)
     n_municipios = len(perfil)
     df = perfil.copy()
     df["equipos"] = 0
 
-    if n_equipos >= n_municipios * 3:
+    if n_equipos_original >= n_municipios * 3:
         df["equipos"] = 1
-        n_restantes = n_equipos - n_municipios
+        n_restantes = n_equipos_original - n_municipios
     else:
-        n_restantes = n_equipos
+        n_restantes = n_equipos_original
 
     df["equipos"] += (
         (df["score"] / df["score"].sum() * n_restantes)
         .round().astype(int)
     )
 
-    diferencia = n_equipos - df["equipos"].sum()
+    diferencia = n_equipos_original - df["equipos"].sum()
     if diferencia > 0:
         df.loc[df["score"].idxmax(), "equipos"] += diferencia
     elif diferencia < 0:
