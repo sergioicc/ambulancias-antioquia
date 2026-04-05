@@ -1,23 +1,26 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# ── Carga de artefactos ───────────────────────────────────────────────────────
-perfil    = pd.read_csv("perfil_municipios.csv")
-km_final2 = joblib.load("modelo_kmeans_k3.pkl")
-scaler_km2 = joblib.load("scaler_kmeans_k3.pkl")
+@st.cache_resource
+def cargar_artefactos():
+    perfil     = pd.read_csv("perfil_municipios.csv")
+    km_final2  = joblib.load("modelo_kmeans_k3.pkl")
+    scaler_km2 = joblib.load("scaler_kmeans_k3.pkl")
+    perfil["score"] = perfil["tasa_accidentes"] * (1 + perfil["IDA_promedio"])
+    return perfil, km_final2, scaler_km2
 
-# ── Etiquetas de cluster ──────────────────────────────────────────────────────
+perfil, km_final2, scaler_km2 = cargar_artefactos()
+
 etiquetas = {
     0: "🔴 Alto riesgo",
-    1: "🟠 Riesgo medio-alto",
-    2: "🟡 Riesgo medio",
-    3: "🟢 Riesgo bajo",
-    4: "⚪ Riesgo muy bajo"
+    1: "🟡 Riesgo medio",
+    2: "🟢 Riesgo bajo"
 }
 perfil["nivel_riesgo"] = perfil["cluster"].map(etiquetas)
 
-# ── Interfaz ──────────────────────────────────────────────────────────────────
 st.title("🚑 Distribución de Equipos de Emergencia")
 st.subheader("Departamento de Antioquia — Municipios con registro histórico")
 
@@ -31,20 +34,17 @@ if st.button("Calcular distribución"):
     df = perfil.copy()
     df["equipos"] = 0
 
-    # Mínimo garantizado
     if n_equipos >= n_municipios * 3:
-        df["equipos"] += 1
+        df["equipos"] = 1
         n_restantes = n_equipos - n_municipios
     else:
         n_restantes = n_equipos
 
-    # Distribución proporcional
     df["equipos"] += (
         (df["score"] / df["score"].sum() * n_restantes)
         .round().astype(int)
     )
 
-    # Ajuste final
     diferencia = n_equipos - df["equipos"].sum()
     if diferencia > 0:
         df.loc[df["score"].idxmax(), "equipos"] += diferencia
@@ -53,13 +53,11 @@ if st.button("Calcular distribución"):
 
     df = df.sort_values("equipos", ascending=False).reset_index(drop=True)
 
-    # ── Métricas resumen ──────────────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
     col1.metric("Total equipos asignados", df["equipos"].sum())
-    col2.metric("Municipios cubiertos", (df["equipos"] > 0).sum())
-    col3.metric("Mínimo por municipio", df["equipos"].min())
+    col2.metric("Municipios cubiertos",    (df["equipos"] > 0).sum())
+    col3.metric("Mínimo por municipio",    df["equipos"].min())
 
-    # ── Tabla resultado ───────────────────────────────────────────────────────
     st.dataframe(
         df[["MUNICIPIO", "nivel_riesgo", "tasa_accidentes",
             "IDA_promedio", "poblacion", "equipos"]]
@@ -75,7 +73,6 @@ if st.button("Calcular distribución"):
         hide_index=True
     )
 
-    # ── Distribución por cluster ──────────────────────────────────────────────
     st.subheader("Equipos por nivel de riesgo")
     resumen_cluster = (
         df.groupby("nivel_riesgo")["equipos"]
