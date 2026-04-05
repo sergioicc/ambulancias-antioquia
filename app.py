@@ -31,26 +31,37 @@ n_equipos = st.number_input(
 
 if st.button("Calcular distribución"):
     n_equipos_original = int(n_equipos)
+    n_equipos_calc = n_equipos_original
     n_municipios = len(perfil)
     df = perfil.copy()
+
+    # Multiplicador por cluster
+    tasa_por_cluster = df.groupby("cluster")["tasa_accidentes"].mean().rank(method="first")
+    n_clusters = tasa_por_cluster.nunique()
+    multiplicadores = {cluster: 0.8 + (rank - 1) * (0.4 / (n_clusters - 1))
+                       for cluster, rank in tasa_por_cluster.items()}
+    df["mult_cluster"] = df["cluster"].map(multiplicadores)
+    df["score"] = df["tasa_accidentes"] * (1 + df["IDA_promedio"]) * df["mult_cluster"]
+
     df["equipos"] = 0
 
-    if n_equipos_original >= n_municipios * 3:
-        df["equipos"] = 1
-        n_restantes = n_equipos_original - n_municipios
-    else:
-        n_restantes = n_equipos_original
+    if n_equipos_calc >= n_municipios * 3:
+        df["equipos"] += 1
+        n_equipos_calc -= n_municipios
 
-    df["equipos"] += (
-        (df["score"] / df["score"].sum() * n_restantes)
-        .round().astype(int)
-    )
+    # Asignación proporcional con residuos
+    proporcional = df["score"] / df["score"].sum() * n_equipos_calc
+    df["equipos"] += proporcional.apply(np.floor).astype(int)
+    df["residuo"] = proporcional - proporcional.apply(np.floor)
 
+    # Ajuste final por residuos
     diferencia = n_equipos_original - df["equipos"].sum()
     if diferencia > 0:
-        df.loc[df["score"].idxmax(), "equipos"] += diferencia
+        idx_sumar = df["residuo"].nlargest(diferencia).index
+        df.loc[idx_sumar, "equipos"] += 1
     elif diferencia < 0:
-        df.loc[df["score"].idxmin(), "equipos"] += diferencia
+        idx_quitar = df["residuo"].nsmallest(abs(diferencia)).index
+        df.loc[idx_quitar, "equipos"] -= 1
 
     df = df.sort_values("equipos", ascending=False).reset_index(drop=True)
 
