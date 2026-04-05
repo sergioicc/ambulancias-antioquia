@@ -15,9 +15,9 @@ def cargar_artefactos():
 perfil, km_final2, scaler_km2 = cargar_artefactos()
 
 etiquetas = {
-    0: "🔴 Alto riesgo",
+    2: "🔴 Alto riesgo",
     1: "🟡 Riesgo medio",
-    2: "🟢 Riesgo bajo"
+    0: "🟢 Riesgo bajo"
 }
 perfil["nivel_riesgo"] = perfil["cluster"].map(etiquetas)
 
