@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
+import numpy as np
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 @st.cache_resource
